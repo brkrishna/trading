@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Scan Report</title>
+        <!-- Bootswatch Flatly -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/flatly/bootstrap.min.css">
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
+        <style>
+            .score-high { background: #d4edda; } /* green */
+            .score-mid { background: #fff3cd; } /* yellow */
+            .score-low { background: #f8d7da; } /* red */
+            td.details-control { cursor: pointer; text-align: center; width: 32px; }
+            .legend .badge { margin-right: 8px; }
+            canvas.sparkline-canvas { vertical-align: middle; }
+            pre.metrics { white-space: pre-wrap; font-size: 0.9rem; }
+        </style>
+    </head>
+    <body>
+        <div class="container py-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="h3">Scan Report</h1>
+                <div class="d-flex align-items-start">
+                    <div>
+                        <div class="legend mb-1">
+                            <span class="badge bg-success">High (>=75)</span>
+                            <span class="badge bg-warning text-dark">Mid (40-75)</span>
+                            <span class="badge bg-danger">Low (&lt;40)</span>
+                        </div>
+                        <div class="small text-muted" id="report-stats">
+                            Generated: <strong>{{ generated_at }}</strong>
+                            &nbsp;|&nbsp; Candidates: <strong>{{ total_candidates }}</strong>
+                            &nbsp;|&nbsp; High: <strong>{{ count_high }}</strong>
+                            &nbsp;|&nbsp; Mid: <strong>{{ count_mid }}</strong>
+                            &nbsp;|&nbsp; Low: <strong>{{ count_low }}</strong>
+                            {%- if last_data_date %}
+                            &nbsp;|&nbsp; Last data date: <strong>{{ last_data_date }}</strong>
+                            {%- endif %}
+                        </div>
+                    </div>
+                    <div class="ms-3">
+                        <label class="small">Auto-refresh:
+                            <input type="number" id="refresh-interval" value="60" min="5" style="width:5rem"/>s
+                            <input type="checkbox" id="auto-refresh-toggle" />
+                        </label>
+                        <div class="small text-muted" id="refresh-countdown" style="margin-top:0.25rem"></div>
+                    </div>
+                </div>
+            </div>
+
+            <table id="candidates" class="table table-striped table-bordered" style="width:100%">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Symbol</th>
+                        <th>Date</th>
+                        <th>Close</th>
+                        <th>Signal</th>
+                        <th>Score</th>
+                        <th>Tags</th>
+                        <th>Sparkline</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {%- for c in candidates %}
+                    <tr class="{{ 'score-high' if c.score|int >= threshold_high else ('score-mid' if c.score|int >= threshold_mid else 'score-low') }}" data-candidate='{{ c|tojson|e }}'>
+                        <td class="details-control">{{ loop.index }}</td>
+                        <td>{{ c.symbol }}</td>
+                        <td>{{ c.date }}</td>
+                        <td>{{ c.close }}</td>
+                        <td>{{ c.signal_type }}</td>
+                        <td>{{ c.score }}</td>
+                        <td>{{ c.reason_tags|join(',') }}</td>
+                        <td>
+                            {%- if c.history %}
+                                <canvas class="sparkline-canvas" width="120" height="32" data-history='{{ c.history|tojson|e }}'></canvas>
+                            {%- endif %}
+                        </td>
+                    </tr>
+                    {%- endfor %}
+                </tbody>
+            </table>
+            <footer class="text-muted small mt-3">Interactive table powered by DataTables + Bootswatch (Flatly).</footer>
+        </div>
+
+        <!-- Chart modal -->
+        <div class="modal fade" id="chartModal" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="chartTitle">Chart</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body"><canvas id="chartCanvas" width="800" height="400"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- JS libs -->
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+        <script>
+            function renderSparkline(canvas){
+                try{
+                    var data = JSON.parse(canvas.getAttribute('data-history'));
+                }catch(e){return}
+                var ctx = canvas.getContext('2d');
+                // create a tiny chart
+                new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: data.map((_,i)=>i+1), datasets: [{ data: data, borderColor: '#0074d9', borderWidth: 1.2, pointRadius: 0 }] },
+                    options: {
+                        responsive: false,
+                        maintainAspectRatio: false,
+                        scales: { x: { display: false }, y: { display: false } },
+                        elements: { line: { tension: 0.3 } },
+                        plugins: { legend: { display: false }, tooltip: { enabled: false } }
+                    }
+                });
+            }
+
+            $(document).ready(function(){
+                var table = $('#candidates').DataTable({
+                    order: [[5,'desc']],
+                    dom: 'Bfrtip',
+                    paging: false,
+                    buttons: [
+                        { extend: 'csvHtml5', text: 'CSV' },
+                        { extend: 'excelHtml5', text: 'Excel' },
+                        { extend: 'colvis', text: 'Columns' }
+                    ]
+                });
+
+                // initialize sparklines
+                document.querySelectorAll('canvas.sparkline-canvas').forEach(renderSparkline);
+
+                // details toggle using DataTables child rows (click serial cell)
+                $('#candidates tbody').on('click', 'td.details-control', function () {
+                    var tr = $(this).closest('tr');
+                    var row = table.row(tr);
+                    if ( row.child.isShown() ) {
+                        row.child.hide();
+                        tr.removeClass('shown');
+                    }
+                    else {
+                        // parse candidate object from data attribute
+                        var cand = {};
+                        try { cand = JSON.parse(tr.attr('data-candidate')); } catch(e){ cand = {}; }
+                        var details = '<div class="p-2">' +
+                            '<pre class="metrics">' + (JSON.stringify(cand.metrics || {}, null, 2)) + '</pre>' +
+                            '<div>History: ' + (JSON.stringify(cand.history || [])) + '</div>' +
+                            '</div>';
+                        row.child(details).show();
+                        tr.addClass('shown');
+                    }
+                });
+
+                // open modal when clicking tradingview link or sparkline
+                var chartCtx = document.getElementById('chartCanvas').getContext('2d');
+                var chartInstance = null;
+                $('#candidates').on('click', 'td canvas.sparkline-canvas', function(e){
+                    // find row
+                    var tr = $(this).closest('tr');
+                    var cand = {};
+                    try { cand = JSON.parse(tr.attr('data-candidate')); } catch(e){ cand = {}; }
+                    var hist = cand.history || [];
+                    if(!hist || hist.length === 0) return;
+                    $('#chartTitle').text(cand.symbol || 'Chart');
+                    if(chartInstance) chartInstance.destroy();
+                    chartInstance = new Chart(chartCtx, {
+                        type: 'line',
+                        data: { labels: hist.map((_,i)=>i+1), datasets: [{ label: 'Close', data: hist, borderColor: '#0074d9', tension: 0.2 }] },
+                        options: { responsive: true }
+                    });
+                    var modal = new bootstrap.Modal(document.getElementById('chartModal'));
+                    modal.show();
+                });
+
+                // Auto-refresh logic
+                var countdownTimer = null;
+                var remaining = 0;
+                function startAutoRefresh(intervalSec){
+                    stopAutoRefresh();
+                    remaining = intervalSec;
+                    $('#refresh-countdown').text('Next refresh in ' + remaining + 's');
+                    countdownTimer = setInterval(function(){
+                        remaining -= 1;
+                        $('#refresh-countdown').text('Next refresh in ' + remaining + 's');
+                        if(remaining <= 0){
+                            location.reload();
+                        }
+                    }, 1000);
+                }
+                function stopAutoRefresh(){
+                    if(countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+                    $('#refresh-countdown').text('');
+                }
+                $('#auto-refresh-toggle').on('change', function(){
+                    var on = $(this).is(':checked');
+                    var interval = parseInt($('#refresh-interval').val() || '60', 10);
+                    if(on){ startAutoRefresh(interval); } else { stopAutoRefresh(); }
+                });
+                $('#refresh-interval').on('change', function(){
+                    if($('#auto-refresh-toggle').is(':checked')){
+                        var interval = parseInt($(this).val() || '60', 10);
+                        startAutoRefresh(interval);
+                    }
+                });
+            });
+        </script>
+    </body>
+</html>
