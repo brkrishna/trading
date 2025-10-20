@@ -12,7 +12,7 @@ Quick flags
 
 Cached data
 
-Per-symbol cached CSVs are stored under `trading/data/raw/` to accelerate repeated runs.
+Per-symbol historical data is cached in a SQLite database at `trading/data/trading_data.db` to accelerate repeated runs.
 
 See `trading/README.md` for more usage examples.
 
@@ -20,13 +20,14 @@ Troubleshooting
 ---------------
 
 - No data for some symbols: Yahoo/YFinance may not have data for certain tickers or they may be delisted. The scanner will log "No data for <SYMBOL>" for these cases. Consider verifying the ticker name on Yahoo Finance.
-- Slow runs / rate limits: Use `--limit` during development to reduce network calls. The cache under `trading/data/raw/` speeds repeated runs.
+- Slow runs / rate limits: Use `--limit` during development to reduce network calls. The SQLite cache database speeds repeated runs.
 - Forcing fresh data: Use `--refresh-cache` to force re-downloads even if cache is fresh.
 - Inspecting cache usage:
-	- Info: python -m trading.cache info
-	- Prune: python -m trading.cache prune --max-files 100 --max-bytes 50000000
+	- Database info: python -m trading.storage info
+	- Prune database: python -m trading.storage prune --max-symbols 100 --max-bytes 50000000
+	- Legacy cache info: python -m trading.cache info (for any remaining CSV files)
 
-If you see permission errors when writing cache files, check that your user has write access to `trading/data/raw/`.
+If you see permission errors when writing cache data, check that your user has write access to `trading/data/`.
 
 Screenshots (optional)
 ----------------------
@@ -59,11 +60,13 @@ Note: Playwright will download browser binaries during `playwright install`.
 Cache inspector (interactive)
 -----------------------------
 
-You can run a small local HTTP server that lists cached files and allows deleting selected files:
+You can run a small local HTTP server that lists cached CSV files (if any legacy files remain) and allows deleting selected files:
 
 ```bash
 python tools/cache_server.py --port 8000
 # then open http://127.0.0.1:8000/ in your browser
 ```
 
-This is intended for local, trusted use only (no auth). It operates directly on files under `trading/data/raw/`.
+This is intended for local, trusted use only (no auth). It operates on legacy CSV files under `trading/data/raw/`.
+
+**Note**: The application now primarily uses SQLite storage. Use `python -m trading.storage info` to inspect the database.

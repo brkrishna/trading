@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional, Tuple, List
-import time
+from typing import Optional, List
 
 # Cache defaults (can be overridden via env vars)
 DEFAULT_MAX_CACHE_FILES = int(os.getenv('TRADING_CACHE_MAX_FILES', '200'))
@@ -96,11 +95,12 @@ def prune_cache(dirpath: Optional[Path] = None, max_files: Optional[int] = None,
 
 
 def _format_bytes(n: int) -> str:
+    size = float(n)
     for unit in ['B', 'KB', 'MB', 'GB']:
-        if n < 1024:
-            return f"{n:.1f}{unit}"
-        n /= 1024
-    return f"{n:.1f}TB"
+        if size < 1024:
+            return f"{size:.1f}{unit}"
+        size /= 1024
+    return f"{size:.1f}TB"
 
 
 def _cli_info():

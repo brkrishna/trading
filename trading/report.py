@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any
 import json
 import logging
-import re
 
 logger = logging.getLogger('trading.report')
 
@@ -21,13 +20,13 @@ INLINE_TEMPLATE = '''
 
 
 
-def generate_html_report(candidates: List[Dict], path: Path, threshold_high: int = 75, threshold_mid: int = 40):
+def generate_html_report(candidates: List[Dict[str, Any]], path: Path, threshold_high: int = 75, threshold_mid: int = 40) -> None:
     """Render an interactive HTML report from candidates and write to path.
 
     Candidates should be a list of JSON-serializable dict-like objects.
     """
     # Ensure every candidate is JSON-serializable for embedding
-    def _safe(obj):
+    def _safe(obj: Dict[str, Any]) -> Dict[str, Any]:
         # convert any non-serializable fields if needed
         o = dict(obj)
         # ensure lists for tags/history
@@ -61,8 +60,12 @@ def generate_html_report(candidates: List[Dict], path: Path, threshold_high: int
     # best-effort last data date from candidates
     last_data_date = None
     try:
-        dates = [c.get('date') for c in data if c.get('date')]
-        last_data_date = max(dates) if dates else None
+        valid_dates = []
+        for c in data:
+            date = c.get('date')
+            if date is not None:
+                valid_dates.append(date)
+        last_data_date = max(valid_dates) if valid_dates else None
     except Exception:
         last_data_date = None
 
@@ -80,8 +83,7 @@ def generate_html_report(candidates: List[Dict], path: Path, threshold_high: int
                 loader=jinja2.BaseLoader(),
                 autoescape=jinja2.select_autoescape(['html', 'xml'])
             )
-            # ensure tojson is available
-            env.filters['tojson'] = jinja2.filters.do_tojson
+            # ensure tojson is available - it should be built-in to Jinja2
             tpl = env.from_string(template_text)
             html = tpl.render(
                 candidates=data,

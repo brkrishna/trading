@@ -1,7 +1,6 @@
 import yfinance as yf
 import pandas as pd
-from typing import List
-from pathlib import Path
+from typing import List, Optional
 import re
 import time
 from . import cache as cache_mod
@@ -14,7 +13,7 @@ def _safe_symbol_filename(symbol: str) -> str:
     # keep alphanumerics, dash and underscore
     return re.sub(r'[^A-Za-z0-9_.-]', '_', symbol) + '.csv'
 
-def fetch_symbol_history(symbol: str, period: str = '1y', interval: str = '1d', refresh_cache: bool = False, cache_freshness_seconds: int = None) -> pd.DataFrame:
+def fetch_symbol_history(symbol: str, period: str = '1y', interval: str = '1d', refresh_cache: bool = False, cache_freshness_seconds: Optional[int] = None) -> pd.DataFrame:
     """Fetch historical OHLCV for symbol using yfinance and return DataFrame with date, open, high, low, close, volume."""
     # Try load from cache unless refresh_cache is True
     # Check storage DB first unless refresh_cache
@@ -61,7 +60,7 @@ def fetch_symbol_history(symbol: str, period: str = '1y', interval: str = '1d', 
         pass
     return df
 
-def fetch_watchlist(symbols: List[str], period: str = '1y', interval: str = '1d', refresh_cache: bool = False, cache_freshness_seconds: int = None) -> dict:
+def fetch_watchlist(symbols: List[str], period: str = '1y', interval: str = '1d', refresh_cache: bool = False, cache_freshness_seconds: Optional[int] = None) -> dict:
     results = {}
     for s in symbols:
         try:

@@ -16,11 +16,11 @@ Options of interest
   Example: `--limit 5`
 
 - --refresh-cache
-  Force re-download of symbol historical data and overwrite local CSV cache.
+  Force re-download of symbol historical data and overwrite cached data in SQLite database.
   Use this when you want fresh data regardless of cache age.
 
 - --cache-freshness SECONDS
-  Override the default cache freshness window (default 86400 seconds / 24 hours). If a cached CSV is younger than this value it will be used instead of re-downloading.
+  Override the default cache freshness window (default 86400 seconds / 24 hours). If cached data is younger than this value it will be used instead of re-downloading.
   Example: `--cache-freshness 3600` (1 hour)
 
 Examples
@@ -45,5 +45,6 @@ python -m trading.scan --symbols-file my_symbols.txt --cache-freshness 3600
 
 Notes
 
-- Cached symbol CSVs are stored under `trading/data/raw/` and are named like `RELIANCE.NS.csv` (unsafe filename characters are replaced by underscores).
+- Cached symbol data is stored in SQLite database at `trading/data/trading_data.db`.
 - The default symbol list is `trading/data/nifty50.txt` when no `--watchlist` or `--symbols-file` is provided.
+- Legacy CSV cache files may still exist under `trading/data/raw/` from older versions.

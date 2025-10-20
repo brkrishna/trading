@@ -3,8 +3,9 @@ from . import cache as cache_mod
 import logging
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 from .fetcher import fetch_watchlist
 from .detector import detect_signal
 from .writer import write_candidates_csv, write_candidates_json
@@ -25,7 +26,7 @@ DEFAULT_CONFIG = {
     'liquidity_min_avg_volume': 100000,
 }
 
-def scan_watchlist(symbols, out_dir: Path, config=DEFAULT_CONFIG, limit: int = None, refresh_cache: bool = False, cache_freshness: int = None, report_path: Path = None):
+def scan_watchlist(symbols, out_dir: Path, config=DEFAULT_CONFIG, limit: Optional[int] = None, refresh_cache: bool = False, cache_freshness: Optional[int] = None, report_path: Optional[Path] = None):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger('trading.scan')
@@ -53,7 +54,7 @@ def scan_watchlist(symbols, out_dir: Path, config=DEFAULT_CONFIG, limit: int = N
             failures.append({'symbol': s, 'reason': str(e)})
 
     # write outputs with timestamp
-    run_id = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+    run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     csv_path = out_dir / f'candidates_{run_id}.csv'
     json_path = out_dir / f'candidates_{run_id}.json'
     report_path = report_path or (out_dir / f'report_{run_id}.html')
@@ -63,7 +64,7 @@ def scan_watchlist(symbols, out_dir: Path, config=DEFAULT_CONFIG, limit: int = N
     end = time.time()
     run_meta = {
         'run_id': run_id,
-        'timestamp_utc': datetime.utcnow().isoformat(),
+        'timestamp_utc': datetime.now(timezone.utc).isoformat(),
         'symbols_processed': processed,
         'candidates_found': len(candidates),
         'failures': failures,
@@ -132,7 +133,7 @@ def main(argv=None):
         raise SystemExit(0)
 
     outdir = Path(args.outdir)
-    run_id = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+    run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     report_path = outdir / f'report_{run_id}.html'
     candidates = scan_watchlist(watchlist, outdir, limit=args.limit, refresh_cache=args.refresh_cache, cache_freshness=args.cache_freshness, config=DEFAULT_CONFIG, report_path=report_path)
     # generate report with thresholds

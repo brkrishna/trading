@@ -16,7 +16,7 @@ def _conn():
     return conn
 
 
-def init_db():
+def init_db() -> None:
     conn = _conn()
     cur = conn.cursor()
     cur.execute('''
@@ -44,7 +44,7 @@ def init_db():
     conn.close()
 
 
-def write_symbol_history(symbol: str, df: pd.DataFrame):
+def write_symbol_history(symbol: str, df: pd.DataFrame) -> None:
     """Persist the DataFrame of OHLCV for a symbol into the DB."""
     init_db()
     if df is None or df.empty:
@@ -55,11 +55,23 @@ def write_symbol_history(symbol: str, df: pd.DataFrame):
         date = r.get('date')
         if isinstance(date, (datetime.date, datetime.datetime)):
             date = pd.to_datetime(date).strftime('%Y-%m-%d')
-        rows.append((symbol, date, float(r.get('open') or 0), float(r.get('high') or 0), float(r.get('low') or 0), float(r.get('close') or 0), float(r.get('volume') or 0)))
+        try:
+            rows.append((
+                symbol, 
+                date, 
+                float(r.get('open') or 0), 
+                float(r.get('high') or 0), 
+                float(r.get('low') or 0), 
+                float(r.get('close') or 0), 
+                float(r.get('volume') or 0)
+            ))
+        except (ValueError, TypeError):
+            # Skip invalid data rows
+            continue
     conn = _conn()
     cur = conn.cursor()
     cur.executemany('''INSERT OR REPLACE INTO history(symbol,date,open,high,low,close,volume) VALUES (?,?,?,?,?,?,?)''', rows)
-    now = datetime.datetime.utcnow().isoformat() + 'Z'
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat() + 'Z'
     cur.execute('INSERT OR REPLACE INTO symbols(symbol,last_fetched,last_accessed,rows) VALUES (?,?,?,?)', (symbol, now, now, len(rows)))
     conn.commit()
     conn.close()
@@ -95,11 +107,11 @@ def get_symbol_meta(symbol: str) -> Optional[Dict[str, Any]]:
     return dict(r)
 
 
-def touch_symbol_access(symbol: str):
+def touch_symbol_access(symbol: str) -> None:
     init_db()
     conn = _conn()
     cur = conn.cursor()
-    now = datetime.datetime.utcnow().isoformat() + 'Z'
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat() + 'Z'
     cur.execute('UPDATE symbols SET last_accessed=? WHERE symbol=?', (now, symbol))
     conn.commit()
     conn.close()

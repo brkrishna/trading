@@ -11,6 +11,9 @@ from urllib.parse import urlparse
 import json
 from pathlib import Path
 import argparse
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from trading import cache
 
 RAW = cache.RAW_DIR
