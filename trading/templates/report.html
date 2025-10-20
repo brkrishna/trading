@@ -17,6 +17,9 @@
             .legend .badge { margin-right: 8px; }
             canvas.sparkline-canvas { vertical-align: middle; }
             pre.metrics { white-space: pre-wrap; font-size: 0.9rem; }
+            /* Number formatting and alignment */
+            .number-right { text-align: right; }
+            .date-format { text-align: center; }
         </style>
     </head>
     <body>
@@ -69,10 +72,10 @@
                     <tr class="{{ 'score-high' if c.score|int >= threshold_high else ('score-mid' if c.score|int >= threshold_mid else 'score-low') }}" data-candidate='{{ c|tojson|e }}'>
                         <td class="details-control">{{ loop.index }}</td>
                         <td>{{ c.symbol }}</td>
-                        <td>{{ c.date }}</td>
-                        <td>{{ c.close }}</td>
+                        <td class="date-format">{{ c.date_formatted }}</td>
+                        <td class="number-right">{{ "%.2f"|format(c.close) }}</td>
                         <td>{{ c.signal_type }}</td>
-                        <td>{{ c.score }}</td>
+                        <td class="number-right">{{ c.score }}</td>
                         <td>{{ c.reason_tags|join(',') }}</td>
                         <td>
                             {%- if c.history %}
@@ -139,6 +142,10 @@
                         { extend: 'csvHtml5', text: 'CSV' },
                         { extend: 'excelHtml5', text: 'Excel' },
                         { extend: 'colvis', text: 'Columns' }
+                    ],
+                    columnDefs: [
+                        { className: "number-right", targets: [3, 5] }, // Close and Score columns
+                        { className: "date-format", targets: [2] }      // Date column
                     ]
                 });
 

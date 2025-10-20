@@ -33,6 +33,28 @@ def generate_html_report(candidates: List[Dict[str, Any]], path: Path, threshold
         o['reason_tags'] = o.get('reason_tags') or []
         o['history'] = o.get('history') or []
         o['metrics'] = o.get('metrics') or {}
+        
+        # Format date as dd/mmm/yy
+        if 'date' in o and o['date']:
+            try:
+                from datetime import datetime
+                # Parse the date string (assuming YYYY-MM-DD format)
+                date_obj = datetime.strptime(str(o['date']), '%Y-%m-%d')
+                # Format as dd/mmm/yy (e.g., 20/Oct/25)
+                o['date_formatted'] = date_obj.strftime('%d/%b/%y')
+            except Exception:
+                # Fallback to original date if parsing fails
+                o['date_formatted'] = str(o['date'])
+        else:
+            o['date_formatted'] = ''
+            
+        # Ensure close price is a float for proper formatting
+        if 'close' in o and o['close'] is not None:
+            try:
+                o['close'] = float(o['close'])
+            except (ValueError, TypeError):
+                o['close'] = 0.0
+        
         return o
 
     data = [_safe(c) for c in candidates]
@@ -65,7 +87,17 @@ def generate_html_report(candidates: List[Dict[str, Any]], path: Path, threshold
             date = c.get('date')
             if date is not None:
                 valid_dates.append(date)
-        last_data_date = max(valid_dates) if valid_dates else None
+        if valid_dates:
+            max_date = max(valid_dates)
+            # Format the last data date as dd/mmm/yy
+            try:
+                from datetime import datetime
+                date_obj = datetime.strptime(str(max_date), '%Y-%m-%d')
+                last_data_date = date_obj.strftime('%d/%b/%y')
+            except Exception:
+                last_data_date = str(max_date)
+        else:
+            last_data_date = None
     except Exception:
         last_data_date = None
 
