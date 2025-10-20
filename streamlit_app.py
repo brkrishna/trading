@@ -18,6 +18,10 @@ import subprocess
 import sys
 from typing import List, Dict, Any, Optional
 
+# Import our validation system
+sys.path.append(str(Path(__file__).parent))
+from trading.validator import validator
+
 # Configure page
 st.set_page_config(
     page_title="Trading Scanner Dashboard",
@@ -56,8 +60,8 @@ def init_logs_db():
     conn.close()
 
 def log_scanner_run(status: str, candidates_count: int = 0, symbols_scanned: int = 0, 
-                   duration_seconds: float = 0, output_files: List[str] = None, 
-                   error_message: str = None, parameters: Dict = None):
+                   duration_seconds: float = 0, output_files: Optional[List[str]] = None, 
+                   error_message: Optional[str] = None, parameters: Optional[Dict] = None):
     """Log a scanner run to the database"""
     init_logs_db()
     conn = sqlite3.connect(LOGS_PATH)
@@ -83,7 +87,7 @@ def log_scanner_run(status: str, candidates_count: int = 0, symbols_scanned: int
     conn.close()
 
 def get_latest_candidates() -> pd.DataFrame:
-    """Get the latest candidate results"""
+    """Get the latest candidate results with validation scoring"""
     try:
         # Look for the most recent candidates JSON file
         json_files = list(OUTPUTS_PATH.glob("candidates_*.json"))
@@ -99,7 +103,22 @@ def get_latest_candidates() -> pd.DataFrame:
         if not candidates:
             return pd.DataFrame()
         
-        df = pd.DataFrame(candidates)
+        # Enhance each candidate with validation scores
+        enhanced_candidates = []
+        for candidate in candidates:
+            try:
+                # Run validation scoring
+                validation_result = validator.validate_symbol(candidate)
+                
+                # Merge validation results with original data
+                enhanced_candidate = {**candidate, **validation_result}
+                enhanced_candidates.append(enhanced_candidate)
+            except Exception as e:
+                print(f"Validation failed for {candidate.get('symbol', 'unknown')}: {e}")
+                # Add candidate without validation scores
+                enhanced_candidates.append(candidate)
+        
+        df = pd.DataFrame(enhanced_candidates)
         
         # Format the data for display
         if 'close' in df.columns:
@@ -139,7 +158,7 @@ def get_run_logs() -> pd.DataFrame:
         st.error(f"Error loading run logs: {e}")
         return pd.DataFrame()
 
-def run_scanner(limit: int = 20, symbols_file: str = None) -> Dict[str, Any]:
+def run_scanner(limit: int = 20, symbols_file: Optional[str] = None) -> Dict[str, Any]:
     """Run the trading scanner"""
     import time
     start_time = time.time()
@@ -267,7 +286,7 @@ def main():
         # Run scanner button
         if st.button("🚀 Run Scanner", type="primary"):
             with st.spinner("Running scanner..."):
-                result = run_scanner(limit, symbols_file or None)
+                result = run_scanner(limit, symbols_file if symbols_file else None)
                 
                 if result["success"]:
                     st.success(f"✅ Scanner completed! Found {result['candidates_count']} candidates in {result['duration']:.1f}s")
@@ -301,67 +320,210 @@ def main():
             st.info("No recent results found. Run the scanner to generate new data.")
         else:
             # Display summary metrics
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
                 st.metric("Total Candidates", len(df))
             
             with col2:
-                high_score = len(df[df['score'] >= 75]) if 'score' in df.columns else 0
-                st.metric("High Score (≥75)", high_score)
+                high_confidence = 0
+                if 'recommendation' in df.columns:
+                    high_confidence = len(df[df['recommendation'].apply(lambda x: isinstance(x, dict) and x.get('confidence') == 'HIGH')])
+                st.metric("High Confidence", high_confidence)
             
             with col3:
-                mid_score = len(df[(df['score'] >= 40) & (df['score'] < 75)]) if 'score' in df.columns else 0
-                st.metric("Mid Score (40-75)", mid_score)
+                enter_signals = 0
+                if 'recommendation' in df.columns:
+                    enter_signals = len(df[df['recommendation'].apply(lambda x: isinstance(x, dict) and x.get('action') == 'ENTER')])
+                st.metric("Entry Signals", enter_signals)
             
             with col4:
-                avg_score = df['score'].mean() if 'score' in df.columns else 0
-                st.metric("Average Score", f"{avg_score:.1f}")
+                avg_validation_score = df['overall_score'].mean() if 'overall_score' in df.columns else 0
+                st.metric("Avg Validation Score", f"{avg_validation_score:.1f}")
+            
+            with col5:
+                red_flags_count = 0
+                if 'red_flags' in df.columns:
+                    red_flags_count = len(df[df['red_flags'].apply(lambda x: isinstance(x, list) and len(x) > 0)])
+                st.metric("🚩 Red Flags", red_flags_count)
             
             st.divider()
             
-            # Filters
-            col1, col2 = st.columns(2)
+            # Enhanced Filters
+            col1, col2, col3 = st.columns(3)
             
             with col1:
                 if 'signal_type' in df.columns:
                     signal_filter = st.multiselect(
-                        "Filter by Signal Type",
+                        "📊 Signal Type",
                         options=df['signal_type'].unique(),
                         default=df['signal_type'].unique()
                     )
                     df = df[df['signal_type'].isin(signal_filter)]
             
             with col2:
-                if 'score' in df.columns:
-                    min_score = st.slider("Minimum Score", 0, 100, 0)
-                    df = df[df['score'] >= min_score]
+                if 'recommendation' in df.columns:
+                    action_filter = st.selectbox(
+                        "💡 Recommendation",
+                        options=['All', 'ENTER', 'SKIP'],
+                        index=0
+                    )
+                    if action_filter != 'All':
+                        df = df[df['recommendation'].apply(lambda x: isinstance(x, dict) and x.get('action') == action_filter)]
             
-            # Display results table
+            with col3:
+                if 'overall_score' in df.columns:
+                    min_validation_score = st.slider("🎯 Min Validation Score", 0, 100, 0)
+                    df = df[df['overall_score'] >= min_validation_score]
+            
+            # Display enhanced results table
             if not df.empty:
-                # Select columns to display
-                display_cols = ['symbol', 'date_formatted', 'close', 'signal_type', 'score']
-                if 'reason_tags' in df.columns:
-                    display_cols.append('reason_tags')
+                st.subheader("📊 Validation Results")
                 
-                # Rename columns for display
-                display_df = df[display_cols].copy()
-                display_df.columns = ['Symbol', 'Date', 'Close (₹)', 'Signal', 'Score', 'Tags']
-                
-                st.dataframe(
-                    display_df,
-                    width='stretch',
-                    hide_index=True,
-                    column_config={
-                        "Close (₹)": st.column_config.NumberColumn(
-                            format="₹%.2f"
-                        ),
-                        "Score": st.column_config.ProgressColumn(
-                            min_value=0,
-                            max_value=100
-                        )
-                    }
-                )
+                # Create enhanced display with validation scores
+                for idx, row in df.iterrows():
+                    with st.container():
+                        # Main row with key info
+                        col1, col2, col3, col4, col5, col6 = st.columns([2, 1, 1, 1, 2, 1])
+                        
+                        with col1:
+                            st.write(f"**{row['symbol']}**")
+                            st.caption(f"Signal: {row.get('signal_type', 'Unknown')}")
+                        
+                        with col2:
+                            st.metric("Price", f"₹{row['close']:.2f}")
+                            st.caption(row.get('date_formatted', ''))
+                        
+                        with col3:
+                            overall_score = row.get('overall_score', 0)
+                            if overall_score > 0:
+                                st.metric("Validation", f"{overall_score:.0f}/100")
+                                
+                                # Color coding
+                                if overall_score >= 70:
+                                    st.success("High Confidence")
+                                elif overall_score >= 50:
+                                    st.warning("Medium Confidence") 
+                                else:
+                                    st.error("Low Confidence")
+                            else:
+                                st.metric("Score", f"{row.get('score', 0)}")
+                                st.info("Basic Scoring")
+                        
+                        with col4:
+                            tech_score = row.get('technical_score', 0)
+                            fund_score = row.get('fundamental_score', 0)
+                            st.metric("Technical", f"{tech_score:.1f}/20")
+                            st.metric("Fundamental", f"{fund_score:.1f}/20")
+                        
+                        with col5:
+                            recommendation = row.get('recommendation', {})
+                            if recommendation and isinstance(recommendation, dict):
+                                action = recommendation.get('action', 'Unknown')
+                                reason = recommendation.get('reason', 'No reason provided')
+                                
+                                if action == 'ENTER':
+                                    st.success(f"✅ {action}")
+                                    position_size = recommendation.get('position_size', '')
+                                    if position_size:
+                                        st.caption(f"Position: {position_size}")
+                                else:
+                                    st.error(f"❌ {action}")
+                                
+                                st.caption(reason)
+                            else:
+                                # Fallback to basic signal info
+                                signal_type = row.get('signal_type', 'Unknown')
+                                st.info(f"📊 {signal_type}")
+                                tags = row.get('reason_tags', [])
+                                if tags:
+                                    st.caption(f"Tags: {', '.join(tags)}")
+                        
+                        with col6:
+                            # Red flags
+                            red_flags = row.get('red_flags', [])
+                            if red_flags and isinstance(red_flags, list) and len(red_flags) > 0:
+                                st.error("🚩 Red Flags")
+                                for flag in red_flags:
+                                    st.caption(f"• {flag}")
+                            else:
+                                st.success("✅ Clean")
+                        
+                        # Expandable detailed analysis
+                        with st.expander(f"📋 Detailed Analysis - {row['symbol']}", expanded=False):
+                            tech_details = row.get('technical_details', {})
+                            fund_details = row.get('fundamental_details', {})
+                            explanations = row.get('explanations', {})
+                            checklist = row.get('checklist_summary', {})
+                            
+                            if tech_details or fund_details:
+                                tcol1, tcol2 = st.columns(2)
+                                
+                                with tcol1:
+                                    # Technical breakdown
+                                    st.write("**🔧 Technical Analysis**")
+                                    if tech_details:
+                                        for key, score in tech_details.items():
+                                            indicator_name = key.replace('_score', '').replace('_', ' ').title()
+                                            progress_val = max(0, min(1, score / 4.0))  # Clamp to 0-1
+                                            st.write(f"**{indicator_name}**: {score:.1f}/4")
+                                            st.progress(progress_val)
+                                            
+                                            # Show explanation on hover (help icon)
+                                            if key in explanations:
+                                                st.help(explanations[key])
+                                    else:
+                                        st.info("Technical analysis not available")
+                                
+                                with tcol2:
+                                    # Fundamental breakdown
+                                    st.write("**📊 Fundamental Analysis**")
+                                    if fund_details:
+                                        for key, score in fund_details.items():
+                                            indicator_name = key.replace('_score', '').replace('_', ' ').title()
+                                            progress_val = max(0, min(1, score / 4.0))
+                                            st.write(f"**{indicator_name}**: {score:.1f}/4")
+                                            st.progress(progress_val)
+                                            
+                                            if key in explanations:
+                                                st.help(explanations[key])
+                                    else:
+                                        st.info("Fundamental analysis not available")
+                                
+                                # Checklist summary
+                                if checklist:
+                                    st.write("**📝 Validation Checklist**")
+                                    ccol1, ccol2 = st.columns(2)
+                                    
+                                    checklist_items = list(checklist.items())
+                                    mid_point = len(checklist_items) // 2
+                                    
+                                    with ccol1:
+                                        for check, status in checklist_items[:mid_point]:
+                                            st.write(f"{status} {check}")
+                                    
+                                    with ccol2:
+                                        for check, status in checklist_items[mid_point:]:
+                                            st.write(f"{status} {check}")
+                            else:
+                                # Show basic analysis for non-validated candidates
+                                st.info("**Enhanced validation not available for this candidate**")
+                                
+                                # Show available basic metrics
+                                basic_cols = st.columns(3)
+                                with basic_cols[0]:
+                                    st.metric("RSI", f"{row.get('rsi14', 0):.1f}")
+                                with basic_cols[1]:
+                                    st.metric("Volume Ratio", f"{row.get('vol', 0) / max(1, row.get('vol_avg20', 1)):.2f}x")
+                                with basic_cols[2]:
+                                    st.metric("SMA20", f"₹{row.get('sma20', 0):.2f}")
+                                
+                                # Show reason tags
+                                tags = row.get('reason_tags', [])
+                                if tags:
+                                    st.write("**Tags:**", ", ".join(tags))
+                        
+                        st.divider()
                 
                 # Interactive charts
                 st.subheader("📈 Price Charts")
