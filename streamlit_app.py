@@ -373,7 +373,7 @@ def main():
                         symbol_data = df[df['symbol'] == selected_symbol].iloc[0]
                         if symbol_data['history']:
                             fig = create_price_chart(symbol_data['history'], selected_symbol)
-                            st.plotly_chart(fig, width='stretch')
+                            st.plotly_chart(fig, config={'displayModeBar': True, 'responsive': True})
     
     with tab2:
         st.header("Scanner Run Logs")
