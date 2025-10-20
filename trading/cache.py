@@ -8,13 +8,37 @@ DEFAULT_MAX_CACHE_BYTES = int(os.getenv('TRADING_CACHE_MAX_BYTES', str(200 * 102
 # default prune policy (mtime or atime)
 DEFAULT_PRUNE_POLICY = os.getenv('TRADING_CACHE_PRUNE_POLICY', 'mtime')
 
-# Raw cache directory
+# Raw cache directory (legacy CSV cache, only created when needed)
 RAW_DIR = Path(__file__).resolve().parent / 'data' / 'raw'
-RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_cache_stats(dirpath: Optional[Path] = None) -> dict:
     d = dirpath or RAW_DIR
+    if not d.exists():
+        # No raw cache directory, return DB stats instead
+        try:
+            from . import storage as storage_mod
+            s = storage_mod.get_db_stats()
+            return {
+                'dir': str(d),
+                'total_files': 0,
+                'total_bytes': 0,
+                'oldest': None,
+                'newest': None,
+                'db_path': s.get('db_path'),
+                'db_size_bytes': s.get('size_bytes'),
+                'db_total_symbols': s.get('total_symbols'),
+                'db_total_rows': s.get('total_rows'),
+            }
+        except Exception:
+            return {
+                'dir': str(d),
+                'total_files': 0,
+                'total_bytes': 0,
+                'oldest': None,
+                'newest': None,
+            }
+    
     files = [p for p in d.iterdir() if p.is_file()]
     total_bytes = sum(p.stat().st_size for p in files)
     total_files = len(files)
@@ -61,6 +85,16 @@ def prune_cache(dirpath: Optional[Path] = None, max_files: Optional[int] = None,
     max_bytes = max_bytes if max_bytes is not None else DEFAULT_MAX_CACHE_BYTES
 
     policy = policy or DEFAULT_PRUNE_POLICY
+
+    if not d.exists():
+        # No raw cache directory to prune
+        return {
+            'removed_count': 0,
+            'removed_files': [],
+            'total_files_after': 0,
+            'total_bytes_after': 0,
+            'policy': policy,
+        }
 
     files = [p for p in d.iterdir() if p.is_file()]
     # choose sorting key based on policy: 'mtime' (modification) or 'atime' (access time)
