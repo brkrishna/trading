@@ -10,6 +10,7 @@ from .fetcher import fetch_watchlist
 from .detector import detect_signal
 from .writer import write_candidates_csv, write_candidates_json
 from .report import generate_html_report
+from .run_logger import run_logger
 
 # Production defaults: use SMA20/SMA50, 60 days history
 DEFAULT_CONFIG = {
@@ -32,6 +33,7 @@ def scan_watchlist(symbols, out_dir: Path, config=DEFAULT_CONFIG, limit: Optiona
     logger = logging.getLogger('trading.scan')
     logger.setLevel(logging.INFO)
     start = time.time()
+    run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     # apply optional limit to avoid fetching full universe during dev/tests
     if limit and isinstance(limit, int) and limit > 0:
         symbols = symbols[:limit]
@@ -54,7 +56,6 @@ def scan_watchlist(symbols, out_dir: Path, config=DEFAULT_CONFIG, limit: Optiona
             failures.append({'symbol': s, 'reason': str(e)})
 
     # write outputs with timestamp
-    run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     csv_path = out_dir / f'candidates_{run_id}.csv'
     json_path = out_dir / f'candidates_{run_id}.json'
     report_path = report_path or (out_dir / f'report_{run_id}.html')
@@ -62,13 +63,40 @@ def scan_watchlist(symbols, out_dir: Path, config=DEFAULT_CONFIG, limit: Optiona
     write_candidates_json(json_path, candidates)
 
     end = time.time()
+    duration = end - start
+    
+    # Log the run
+    try:
+        output_files = [csv_path.name, json_path.name]
+        if report_path:
+            output_files.append(report_path.name)
+            
+        parameters = {
+            'limit': limit,
+            'refresh_cache': refresh_cache,
+            'cache_freshness': cache_freshness,
+            'symbols_count': len(symbols)
+        }
+        
+        run_logger.log_run(
+            status="SUCCESS",
+            run_id=run_id,
+            candidates_count=len(candidates),
+            symbols_scanned=processed,
+            duration_seconds=duration,
+            output_files=output_files,
+            parameters=parameters
+        )
+    except Exception as e:
+        logger.warning(f"Failed to log run: {e}")
+    
     run_meta = {
         'run_id': run_id,
         'timestamp_utc': datetime.now(timezone.utc).isoformat(),
         'symbols_processed': processed,
         'candidates_found': len(candidates),
         'failures': failures,
-        'duration_seconds': end - start,
+        'duration_seconds': duration,
         'csv': str(csv_path),
         'json': str(json_path),
         'report': str(report_path),
