@@ -376,166 +376,138 @@ def main():
                     min_validation_score = st.slider("🎯 Min Validation Score", 0, 100, 0)
                     df = df[df['overall_score'] >= min_validation_score]
             
-            # Display enhanced results table
+            # Minimalist results table
             if not df.empty:
-                st.subheader("📊 Validation Results")
+                st.subheader("📊 Scanner Results")
                 
-                # Create enhanced display with validation scores
+                # Simple sort control
+                sort_by = st.selectbox("Sort by:", ["Score", "Price", "Symbol", "Signal"], index=0)
+                
+                # Sort data
+                if sort_by == "Score":
+                    df = df.sort_values('overall_score', ascending=False)
+                elif sort_by == "Price":
+                    df = df.sort_values('close', ascending=False)
+                elif sort_by == "Symbol":
+                    df = df.sort_values('symbol')
+                elif sort_by == "Signal":
+                    df = df.sort_values('signal_type')
+                
+                # Minimalist table header
+                header_cols = st.columns([2.5, 1.2, 1, 1, 1.2, 1.5, 1.5])
+                with header_cols[0]:
+                    st.write("**Symbol**")
+                with header_cols[1]:
+                    st.write("**Price**")
+                with header_cols[2]:
+                    st.write("**RSI**")
+                with header_cols[3]:
+                    st.write("**Vol**")
+                with header_cols[4]:
+                    st.write("**Score**")
+                with header_cols[5]:
+                    st.write("**Signal**")
+                with header_cols[6]:
+                    st.write("**Status**")
+                
+                st.divider()
+                
+                # Compact data rows
                 for idx, row in df.iterrows():
-                    with st.container():
-                        # Main row with key info
-                        col1, col2, col3, col4, col5, col6 = st.columns([2, 1, 1, 1, 2, 1])
-                        
-                        with col1:
-                            st.write(f"**{row['symbol']}**")
-                            st.caption(f"Signal: {row.get('signal_type', 'Unknown')}")
-                        
-                        with col2:
-                            st.metric("Price", f"₹{row['close']:.2f}")
-                            st.caption(row.get('date_formatted', ''))
-                        
-                        with col3:
-                            overall_score = row.get('overall_score', 0)
-                            if overall_score > 0:
-                                st.metric("Validation", f"{overall_score:.0f}/100")
-                                
-                                # Color coding
-                                if overall_score >= 70:
-                                    st.success("High Confidence")
-                                elif overall_score >= 50:
-                                    st.warning("Medium Confidence") 
-                                else:
-                                    st.error("Low Confidence")
-                            else:
-                                st.metric("Score", f"{row.get('score', 0)}")
-                                st.info("Basic Scoring")
-                        
-                        with col4:
-                            tech_score = row.get('technical_score', 0)
-                            fund_score = row.get('fundamental_score', 0)
-                            st.metric("Technical", f"{tech_score:.1f}/20")
-                            st.metric("Fundamental", f"{fund_score:.1f}/20")
-                        
-                        with col5:
-                            recommendation = row.get('recommendation', {})
-                            if recommendation and isinstance(recommendation, dict):
-                                action = recommendation.get('action', 'Unknown')
-                                reason = recommendation.get('reason', 'No reason provided')
-                                
-                                if action == 'ENTER':
-                                    st.success(f"✅ {action}")
-                                    position_size = recommendation.get('position_size', '')
-                                    if position_size:
-                                        st.caption(f"Position: {position_size}")
-                                else:
-                                    st.error(f"❌ {action}")
-                                
-                                st.caption(reason)
-                            else:
-                                # Fallback to basic signal info
-                                signal_type = row.get('signal_type', 'Unknown')
-                                st.info(f"📊 {signal_type}")
-                                tags = row.get('reason_tags', [])
-                                if tags:
-                                    st.caption(f"Tags: {', '.join(tags)}")
-                        
-                        with col6:
-                            # Red flags
-                            red_flags = row.get('red_flags', [])
-                            if red_flags and isinstance(red_flags, list) and len(red_flags) > 0:
-                                st.error("🚩 Red Flags")
-                                for flag in red_flags:
-                                    st.caption(f"• {flag}")
-                            else:
-                                st.success("✅ Clean")
-                        
-                        # Expandable detailed analysis
-                        with st.expander(f"📋 Detailed Analysis - {row['symbol']}", expanded=False):
-                            tech_details = row.get('technical_details', {})
-                            fund_details = row.get('fundamental_details', {})
-                            explanations = row.get('explanations', {})
-                            checklist = row.get('checklist_summary', {})
-                            
-                            if tech_details or fund_details:
-                                tcol1, tcol2 = st.columns(2)
-                                
-                                with tcol1:
-                                    # Technical breakdown
-                                    st.write("**🔧 Technical Analysis**")
-                                    if tech_details:
-                                        for key, score in tech_details.items():
-                                            indicator_name = key.replace('_score', '').replace('_', ' ').title()
-                                            progress_val = max(0, min(1, score / 4.0))  # Clamp to 0-1
-                                            st.write(f"**{indicator_name}**: {score:.1f}/4")
-                                            st.progress(progress_val)
-                                            
-                                            # Show explanation on hover (help icon)
-                                            if key in explanations:
-                                                st.help(explanations[key])
-                                    else:
-                                        st.info("Technical analysis not available")
-                                
-                                with tcol2:
-                                    # Fundamental breakdown
-                                    st.write("**📊 Fundamental Analysis**")
-                                    if fund_details:
-                                        for key, score in fund_details.items():
-                                            indicator_name = key.replace('_score', '').replace('_', ' ').title()
-                                            progress_val = max(0, min(1, score / 4.0))
-                                            st.write(f"**{indicator_name}**: {score:.1f}/4")
-                                            st.progress(progress_val)
-                                            
-                                            if key in explanations:
-                                                st.help(explanations[key])
-                                    else:
-                                        st.info("Fundamental analysis not available")
-                                
-                                # Checklist summary
-                                if checklist:
-                                    st.write("**📝 Validation Checklist**")
-                                    ccol1, ccol2 = st.columns(2)
-                                    
-                                    checklist_items = list(checklist.items())
-                                    mid_point = len(checklist_items) // 2
-                                    
-                                    with ccol1:
-                                        for check, status in checklist_items[:mid_point]:
-                                            st.write(f"{status} {check}")
-                                    
-                                    with ccol2:
-                                        for check, status in checklist_items[mid_point:]:
-                                            st.write(f"{status} {check}")
-                            else:
-                                # Show basic analysis for non-validated candidates
-                                st.info("**Enhanced validation not available for this candidate**")
-                                
-                                # Show available basic metrics
-                                basic_cols = st.columns(3)
-                                with basic_cols[0]:
-                                    st.metric("RSI", f"{row.get('rsi14', 0):.1f}")
-                                with basic_cols[1]:
-                                    st.metric("Volume Ratio", f"{row.get('vol', 0) / max(1, row.get('vol_avg20', 1)):.2f}x")
-                                with basic_cols[2]:
-                                    st.metric("SMA20", f"₹{row.get('sma20', 0):.2f}")
-                                
-                                # Show reason tags
-                                tags = row.get('reason_tags', [])
-                                if tags:
-                                    st.write("**Tags:**", ", ".join(tags))
-                        
-                        st.divider()
-                
-                # Interactive charts
-                st.subheader("📈 Price Charts")
-                
-                if 'history' in df.columns:
-                    selected_symbol = st.selectbox("Select symbol for chart", df['symbol'].unique())
+                    cols = st.columns([2.5, 1.2, 1, 1, 1.2, 1.5, 1.5])
                     
-                    if selected_symbol:
-                        symbol_data = df[df['symbol'] == selected_symbol].iloc[0]
-                        if symbol_data['history']:
-                            fig = create_price_chart(symbol_data['history'], selected_symbol)
-                            st.plotly_chart(fig, config={'displayModeBar': True, 'responsive': True})
+                    with cols[0]:
+                        # Symbol with confidence indicator
+                        overall_score = row.get('overall_score', 0)
+                        tech_score = row.get('technical_score', 0)
+                        fund_score = row.get('fundamental_score', 0)
+                        
+                        # Smart scoring: try multiple score fields
+                        display_score = overall_score or (tech_score + fund_score) or row.get('score', 0)
+                        
+                        if display_score >= 70:
+                            icon = "🟢"
+                        elif display_score >= 50:
+                            icon = "🟡"  
+                        elif display_score > 0:
+                            icon = "🔴"
+                        else:
+                            icon = "⚪"
+                        
+                        st.write(f"{icon} **{row['symbol']}**")
+                    
+                    with cols[1]:
+                        # Right-aligned price
+                        st.write(f"₹{row['close']:>7.2f}")
+                    
+                    with cols[2]:
+                        # RSI
+                        rsi = row.get('rsi14', 0)
+                        if rsi > 70:
+                            st.write(f"�{rsi:>4.0f}")
+                        elif rsi < 30:
+                            st.write(f"❄️{rsi:>4.0f}")
+                        else:
+                            st.write(f"{rsi:>6.1f}")
+                    
+                    with cols[3]:
+                        # Volume ratio
+                        vol = row.get('vol', 0)
+                        vol_avg = row.get('vol_avg20', 1)
+                        vol_ratio = vol / max(1, vol_avg) if vol_avg else 0
+                        
+                        if vol_ratio > 2.0:
+                            st.write(f"📊{vol_ratio:>3.1f}x")
+                        else:
+                            st.write(f"{vol_ratio:>6.1f}x")
+                    
+                    with cols[4]:
+                        # Validation score
+                        if display_score > 0:
+                            if display_score > 100:  # If it's detailed scoring, normalize
+                                st.write(f"{display_score/5:>5.1f}")  # Assume max 20, normalize to 4
+                            else:
+                                st.write(f"{display_score:>6.0f}")
+                        else:
+                            st.write("  -  ")
+                    
+                    with cols[5]:
+                        # Signal type
+                        signal = row.get('signal_type', 'Unknown')
+                        if signal in ['breakout', 'Breakout']:
+                            st.write("📈 BO")
+                        elif signal in ['pullback', 'Pullback']:
+                            st.write("📉 PB")
+                        elif signal in ['momentum', 'Momentum']:
+                            st.write("🚀 MOM")
+                        else:
+                            st.write(f"{signal[:8]}")
+                    
+                    with cols[6]:
+                        # Status - recommendation or red flags
+                        recommendation = row.get('recommendation', {})
+                        red_flags = row.get('red_flags', [])
+                        
+                        if red_flags and isinstance(red_flags, list) and len(red_flags) > 0:
+                            st.write("🚩 FLAGS")
+                        elif recommendation and isinstance(recommendation, dict):
+                            action = recommendation.get('action', '')
+                            if action == 'ENTER':
+                                st.write("✅ ENTER")
+                            elif action == 'SKIP':
+                                st.write("❌ SKIP")
+                            else:
+                                st.write("⚪ EVAL")
+                        else:
+                            # Check basic scoring confidence
+                            if display_score >= 70:
+                                st.write("✅ HIGH")
+                            elif display_score >= 50:
+                                st.write("🟡 MED")
+                            elif display_score > 0:
+                                st.write("🔴 LOW")
+                            else:
+                                st.write("⚪ NEW")
     
     with tab2:
         st.header("Scanner Run Logs")
