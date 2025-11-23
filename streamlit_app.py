@@ -158,7 +158,7 @@ def get_run_logs() -> pd.DataFrame:
         st.error(f"Error loading run logs: {e}")
         return pd.DataFrame()
 
-def run_scanner(limit: int = 50, symbols_file: Optional[str] = None) -> Dict[str, Any]:
+def run_scanner(limit: int = 50, symbols_file: Optional[str] = None, refresh_cache: bool = False) -> Dict[str, Any]:
     """Run the trading scanner"""
     import time
     start_time = time.time()
@@ -172,6 +172,9 @@ def run_scanner(limit: int = 50, symbols_file: Optional[str] = None) -> Dict[str
         
         if symbols_file:
             cmd.extend(["--symbols-file", symbols_file])
+        
+        if refresh_cache:
+            cmd.append("--refresh-cache")
         
         # Run the scanner
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path.cwd())
@@ -202,7 +205,7 @@ def run_scanner(limit: int = 50, symbols_file: Optional[str] = None) -> Dict[str
                 symbols_scanned=symbols_scanned,
                 duration_seconds=duration,
                 output_files=output_files,
-                parameters={"limit": limit, "symbols_file": symbols_file}
+                parameters={"limit": limit, "symbols_file": symbols_file, "refresh_cache": refresh_cache}
             )
             
             return {
@@ -217,7 +220,7 @@ def run_scanner(limit: int = 50, symbols_file: Optional[str] = None) -> Dict[str
                 status="FAILED",
                 duration_seconds=duration,
                 error_message=result.stderr,
-                parameters={"limit": limit, "symbols_file": symbols_file}
+                parameters={"limit": limit, "symbols_file": symbols_file, "refresh_cache": refresh_cache}
             )
             
             return {
@@ -236,7 +239,7 @@ def run_scanner(limit: int = 50, symbols_file: Optional[str] = None) -> Dict[str
             status="ERROR",
             duration_seconds=duration,
             error_message=error_msg,
-            parameters={"limit": limit, "symbols_file": symbols_file}
+            parameters={"limit": limit, "symbols_file": symbols_file, "refresh_cache": refresh_cache}
         )
         
         return {
@@ -283,10 +286,13 @@ def main():
         limit = st.number_input("Limit symbols", min_value=1, max_value=100, value=20)
         symbols_file = st.text_input("Custom symbols file (optional)")
         
+        # Refresh cache option
+        refresh_cache = st.checkbox("🔄 Refresh data from Yahoo", value=False, help="Force fetch latest data from Yahoo Finance (ignores cache)")
+        
         # Run scanner button
         if st.button("🚀 Run Scanner", type="primary"):
             with st.spinner("Running scanner..."):
-                result = run_scanner(limit, symbols_file if symbols_file else None)
+                result = run_scanner(limit, symbols_file if symbols_file else None, refresh_cache=refresh_cache)
                 
                 if result["success"]:
                     st.success(f"✅ Scanner completed! Found {result['candidates_count']} candidates in {result['duration']:.1f}s")
