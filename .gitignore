@@ -76,3 +76,12 @@ build/
 *.bak
 *~
 .swp
+
+/Scripts/
+/Lib/
+/Include/
+/share/
+/etc/
+/pyvenv.cfg
+
+.gitignore

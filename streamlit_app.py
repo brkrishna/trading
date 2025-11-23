@@ -158,7 +158,7 @@ def get_run_logs() -> pd.DataFrame:
         st.error(f"Error loading run logs: {e}")
         return pd.DataFrame()
 
-def run_scanner(limit: int = 20, symbols_file: Optional[str] = None) -> Dict[str, Any]:
+def run_scanner(limit: int = 50, symbols_file: Optional[str] = None) -> Dict[str, Any]:
     """Run the trading scanner"""
     import time
     start_time = time.time()
