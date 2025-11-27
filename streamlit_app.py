@@ -287,7 +287,7 @@ def main():
         symbols_file = st.text_input("Custom symbols file (optional)")
         
         # Refresh cache option
-        refresh_cache = st.checkbox("🔄 Refresh data from Yahoo", value=False, help="Force fetch latest data from Yahoo Finance (ignores cache)")
+        refresh_cache = st.checkbox("🔄 Refresh NSE Data", value=False, help="Force fetch latest NSE stock data from online source (ignores cache)")
         
         # Run scanner button
         if st.button("🚀 Run Scanner", type="primary"):

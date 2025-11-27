@@ -21,7 +21,7 @@ def _make_sample_df():
 def test_cache_fresh_and_stale(monkeypatch, tmp_path):
     symbol = 'TESTCASH.NS'
     
-    # monkeypatch yfinance.Ticker.history to return a sample DF and count calls
+    # monkeypatch yfinance.Ticker.history to return NSE sample DF and count calls
     calls = {'count': 0}
 
     def fake_history(self, period='1y', interval='1d'):

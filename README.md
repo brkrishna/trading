@@ -7,29 +7,27 @@ This repository contains a small scanner that fetches historical OHLCV data for 
 The scanner:
 - Supports **NSE (National Stock Exchange) India** stocks with `.NS` suffix
 - Currently includes **~100 major NSE stocks** (easily extensible to 4000+)
-- Uses **yfinance** via Yahoo Finance for reliable historical data
+- Fetches NSE data via yfinance with automatic retry and rate limiting
 - Implements **intelligent caching** (SQLite DB at `trading/data/trading_data.db`)
 - Features **retry logic** with exponential backoff for reliability
 - Includes **rate limiting** to avoid overwhelming APIs
 - Generates **interactive HTML reports** with technical analysis
 
-## Data Sources
+## Data Source
 
-### Primary: Yahoo Finance (via yfinance)
-- ✅ Reliable and widely-tested
-- ✅ NSE data available via `.NS` suffix (e.g., `TCS.NS`, `INFY.NS`)
-- ✅ Good historical availability
-- ✅ No official API key required
-
-### Future: Direct NSE Integration
-The architecture supports adding direct NSE data sources (e.g., nsepy) as a fallback or alternative if needed.
+### NSE via yfinance
+- ✅ Reliable and widely-tested data source
+- ✅ NSE stock data available via `.NS` suffix (e.g., `TCS.NS`, `INFY.NS`)
+- ✅ Good historical data availability
+- ✅ No API key required
+- ✅ Automatic retry and rate limiting built-in
 
 ## Quick Start
 
 - `--watchlist SYMBOLS...`  Provide symbols on the command line (e.g., `TCS.NS INFY.NS`)
 - `--symbols-file PATH`     Provide a file with one ticker per line (overrides default)
 - `--limit N`               Limit scan to first N symbols (useful for quick tests)
-- `--refresh-cache`         Force re-download of symbol history from Yahoo
+- `--refresh-cache`         Force re-download of NSE symbol history
 - `--cache-freshness SECS`  Override cache freshness threshold (default 86400 = 24h)
 - `--outdir PATH`           Output directory for results (default: `outputs/`)
 
@@ -110,15 +108,15 @@ python -m trading.scan --limit 50 --refresh-cache
 streamlit run streamlit_app.py
 ```
 
-Then access at `http://localhost:8501` and use the **"🔄 Refresh data from Yahoo"** checkbox to fetch fresh data.
+Then access at `http://localhost:8501` and use the **"🔄 Refresh NSE Data"** checkbox to fetch fresh data.
 
 Troubleshooting
 ---------------
 
 ### No data for some symbols
-- Yahoo Finance may not have data for certain tickers
-- Symbols may be delisted or newly listed
-- Verify ticker name on [NSE India website](https://www.nseindia.com) or Yahoo Finance
+- NSE data may not be available for certain tickers
+- Symbols may be delisted, suspended, or newly listed
+- Verify ticker name on [NSE India website](https://www.nseindia.com)
 - The scanner logs "No data for <SYMBOL>" for these cases
 
 ### Slow runs / Rate limits
@@ -133,7 +131,7 @@ Troubleshooting
   - ✅ `TCS.NS` (preferred)
   - ✅ `TCS` (auto-converted to `TCS.NS`)
   - ❌ `TCS.BO` (Bombay Stock Exchange, not NSE)
-  - ❌ `TCS` (without suffix when directly passing to yfinance)
+  - ❌ `TCS` (without .NS suffix - always use TCS.NS format)
 
 ### Permission errors
 - Check write access to `trading/data/` directory

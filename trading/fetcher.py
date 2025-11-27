@@ -35,16 +35,16 @@ def _normalize_symbol(symbol: str) -> str:
 
 def fetch_symbol_history(symbol: str, period: str = '1y', interval: str = '1d', refresh_cache: bool = False, cache_freshness_seconds: Optional[int] = None, retries: int = MAX_RETRIES) -> pd.DataFrame:
     """
-    Fetch historical OHLCV for symbol using yfinance and return DataFrame with date, open, high, low, close, volume.
+    Fetch historical OHLCV for NSE symbol using yfinance and return DataFrame with date, open, high, low, close, volume.
     
-    Supports both NSE (.NS) and other symbols.
+    Supports NSE (.NS) stock symbols.
     Implements retry logic with exponential backoff for reliability.
     
     Args:
-        symbol: Stock symbol (e.g., 'TCS.NS', 'INFY.NS', 'RELIANCE.NS')
+        symbol: NSE stock symbol (e.g., 'TCS.NS', 'INFY.NS', 'RELIANCE.NS')
         period: Historical period ('1y', '6mo', '1d', etc.)
         interval: Interval ('1d', '1h', '15m', etc.)
-        refresh_cache: Force fetch from Yahoo (bypass cache)
+        refresh_cache: Force fetch from NSE data source (bypass cache)
         cache_freshness_seconds: Override default cache freshness
         retries: Number of retry attempts on failure
     
@@ -80,7 +80,7 @@ def fetch_symbol_history(symbol: str, period: str = '1y', interval: str = '1d', 
             logger.debug(f"Cache miss for {symbol}: {e}")
             pass
 
-    # Fetch from Yahoo with retry logic
+    # Fetch NSE data with retry logic
     last_error = None
     for attempt in range(retries):
         try:
@@ -135,7 +135,7 @@ def fetch_watchlist(symbols: List[str], period: str = '1y', interval: str = '1d'
         rate_limit_ms: Milliseconds to wait between requests (helps avoid rate limits)
     
     Returns:
-        Dict mapping symbol -> DataFrame
+        Dict mapping NSE symbol -> DataFrame
     """
     results = {}
     total = len(symbols)
