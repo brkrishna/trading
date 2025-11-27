@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
-from .fetcher import fetch_watchlist
+from .fetcher import fetch_watchlist, load_symbols_from_file, get_default_nse_symbols
 from .detector import detect_signal
 from .writer import write_candidates_csv, write_candidates_json
 from .report import generate_html_report
@@ -127,7 +127,7 @@ def main(argv=None):
     parser.add_argument('--score-high', type=int, default=75, help='Score threshold for high/green rows')
     parser.add_argument('--score-mid', type=int, default=40, help='Score threshold for mid/yellow rows')
     args = parser.parse_args(argv)
-    # if no watchlist provided, load NIFTY50 default file
+    # if no watchlist provided, load NSE symbols (prefer NSE major over NIFTY50)
     watchlist = args.watchlist
     # allow user to pass explicit symbols file
     symbols_file = args.symbols_file
@@ -135,17 +135,22 @@ def main(argv=None):
         sfp = Path(symbols_file)
         if not sfp.exists():
             raise SystemExit(f'Symbols file not found: {sfp}')
-        with open(sfp, 'r') as f:
-            watchlist = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+        watchlist = load_symbols_from_file(str(sfp))
         print(f'Loaded watchlist ({len(watchlist)} symbols) from {sfp}')
     if not watchlist:
-        default_file = Path(__file__).resolve().parent / 'data' / 'nifty50.txt'
-        try:
-            with open(default_file, 'r') as f:
-                watchlist = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
-        except FileNotFoundError:
-            raise SystemExit(f'Default watchlist not found: {default_file}. Provide --watchlist or add the file.')
-        print(f'Loaded default NIFTY50 watchlist ({len(watchlist)} symbols) from {default_file}')
+        # Try NSE major symbols first (100+ stocks)
+        nse_major_file = Path(__file__).resolve().parent / 'data' / 'nse_symbols_major.txt'
+        if nse_major_file.exists():
+            watchlist = load_symbols_from_file(str(nse_major_file))
+            print(f'Loaded default NSE major watchlist ({len(watchlist)} symbols) from {nse_major_file}')
+        else:
+            # Fallback to NIFTY50 if NSE major not available
+            default_file = Path(__file__).resolve().parent / 'data' / 'nifty50.txt'
+            try:
+                watchlist = load_symbols_from_file(str(default_file))
+            except FileNotFoundError:
+                raise SystemExit(f'Default watchlist not found: {default_file}. Provide --watchlist or add the file.')
+            print(f'Loaded default NIFTY50 watchlist ({len(watchlist)} symbols) from {default_file}')
     # If user requested cache info, show and exit
     if args.cache_info:
         stats = cache_mod.get_cache_stats()
