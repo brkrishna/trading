@@ -283,7 +283,7 @@ def main():
         st.header("🎛️ Scanner Controls")
         
         # Scanner parameters
-        limit = st.number_input("Limit symbols", min_value=1, max_value=100, value=20)
+        limit = st.number_input("Limit symbols (0 = all available)", min_value=0, value=50, help="Number of symbols to scan (0 for all, default 50)")
         symbols_file = st.text_input("Custom symbols file (optional)")
         
         # Refresh cache option
@@ -292,7 +292,9 @@ def main():
         # Run scanner button
         if st.button("🚀 Run Scanner", type="primary"):
             with st.spinner("Running scanner..."):
-                result = run_scanner(limit, symbols_file if symbols_file else None, refresh_cache=refresh_cache)
+                # Convert 0 to None (means all symbols)
+                scan_limit = None if limit == 0 else limit
+                result = run_scanner(scan_limit, symbols_file if symbols_file else None, refresh_cache=refresh_cache)
                 
                 if result["success"]:
                     st.success(f"✅ Scanner completed! Found {result['candidates_count']} candidates in {result['duration']:.1f}s")

@@ -138,13 +138,17 @@ def main(argv=None):
         watchlist = load_symbols_from_file(str(sfp))
         print(f'Loaded watchlist ({len(watchlist)} symbols) from {sfp}')
     if not watchlist:
-        # Try NSE major symbols first (100+ stocks)
-        nse_major_file = Path(__file__).resolve().parent / 'data' / 'nse_symbols_major.txt'
-        if nse_major_file.exists():
+        # Try NSE all symbols first (800+ stocks) - comprehensive list
+        nse_all_file = Path(__file__).resolve().parent / 'data' / 'nse_symbols_all.txt'
+        if nse_all_file.exists():
+            watchlist = load_symbols_from_file(str(nse_all_file))
+            print(f'Loaded default NSE comprehensive watchlist ({len(watchlist)} symbols) from {nse_all_file}')
+        # Fallback to NSE major if all not available
+        elif (nse_major_file := Path(__file__).resolve().parent / 'data' / 'nse_symbols_major.txt').exists():
             watchlist = load_symbols_from_file(str(nse_major_file))
-            print(f'Loaded default NSE major watchlist ({len(watchlist)} symbols) from {nse_major_file}')
+            print(f'Loaded NSE major watchlist ({len(watchlist)} symbols) from {nse_major_file}')
         else:
-            # Fallback to NIFTY50 if NSE major not available
+            # Fallback to NIFTY50 if neither available
             default_file = Path(__file__).resolve().parent / 'data' / 'nifty50.txt'
             try:
                 watchlist = load_symbols_from_file(str(default_file))
